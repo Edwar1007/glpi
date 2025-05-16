@@ -54,7 +54,7 @@ def buscar_usuario():
     # 🧠 Separar las palabras del nombre ingresado
     palabras = nombre_usuario.lower().split()
 
-    # 🔍 Construir criterios dinámicos
+    # 🔍 Construir criterios dinámicos para buscar usuario
     criteria = ""
     for i, palabra in enumerate(palabras):
         criteria += f"criteria[{i * 2}][field]=9&criteria[{i * 2}][searchtype]=contains&criteria[{i * 2}][value]={palabra}&"
@@ -64,20 +64,28 @@ def buscar_usuario():
             criteria += f"criteria[{i * 2 + 1}][link]=AND&"
 
     url_usuario = f"{GLPI_URL}/search/User?{criteria}range=0-10"
-
     res_user = requests.get(url_usuario, headers=headers)
-    print("🔍 URL consulta usuario:", url_usuario)
 
     if res_user.status_code != 200 or not res_user.json().get("data"):
         cerrar_sesion(token)
         return jsonify({"mensaje": "No se encontró ningún usuario con ese nombre."}), 404
 
-    user_id = res_user.json()["data"][0]["id"]
+    # ✅ Obtener login del primer usuario encontrado
+    user_data = res_user.json()["data"][0].get("items", [])
+    login = ""
+    for campo in user_data:
+        if campo.get("field") == 1:
+            login = campo.get("value")
+            break
 
-    # 🔁 Buscar equipos asignados a ese usuario
+    if not login:
+        cerrar_sesion(token)
+        return jsonify({"error": "No se pudo extraer el nombre de usuario (login)"}), 500
+
+    # 🔁 Buscar equipos asignados usando el login como valor del campo 9
     url_equipos = (
         f"{GLPI_URL}/search/Computer?"
-        f"criteria[0][field]=9&criteria[0][searchtype]=equals&criteria[0][value]={user_id}"
+        f"criteria[0][field]=9&criteria[0][searchtype]=contains&criteria[0][value]={login}"
         f"&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31"
         f"&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
     )
@@ -93,8 +101,6 @@ def buscar_usuario():
             return jsonify({"mensaje": "El usuario fue encontrado, pero no tiene equipos asignados."}), 404
 
     return jsonify({"error": "Error al comunicarse con GLPI"}), 500
-
-
 # 🔎 Diagnóstico: ver cómo están guardados los usuarios
 @app.route('/usuarios-debug', methods=['GET'])
 def usuarios_debug():
