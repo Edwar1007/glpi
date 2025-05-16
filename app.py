@@ -51,7 +51,7 @@
           {
             "name": "usuario",
             "in": "query",
-            "required": true,
+            "required": True,
             "description": "Nombre completo del usuario",
             "schema": {
               "type": "string"
