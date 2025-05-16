@@ -95,23 +95,20 @@ def usuarios_debug():
         return jsonify({"error": "No se pudo iniciar sesión"}), 500
 
     headers = {"Session-Token": token, "Content-Type": "application/json"}
-    url = f"{GLPI_URL}/search/User?range=0-50&forcedisplay[0]=1&forcedisplay[1]=9&forcedisplay[2]=34"
+    
+    # 🔍 Consulta simple sin filtros forzados
+    url = f"{GLPI_URL}/search/User?range=0-20"
     res = requests.get(url, headers=headers)
     cerrar_sesion(token)
 
     if res.status_code == 200:
-        datos = res.json().get("data", [])
-        usuarios = []
-        for u in datos:
-            campos = {str(item["field"]): item["value"] for item in u.get("items", [])}
-            usuarios.append({
-                "id": u.get("id"),
-                "login": campos.get("1"),
-                "apellido": campos.get("9"),
-                "nombre": campos.get("34")
-            })
-        return jsonify({"usuarios": usuarios})
-    return jsonify({"error": "No se pudo obtener la lista de usuarios"}), 500
+        try:
+            datos = res.json()
+            return jsonify({"usuarios_raw": datos})
+        except Exception as e:
+            return jsonify({"error": "No se pudo interpretar la respuesta", "detalle": str(e)}), 500
+    else:
+        return jsonify({"error": "No se pudo obtener la lista de usuarios", "codigo": res.status_code}), 500
 
 # 🔸 Ejecutar localmente
 if __name__ == '__main__':
