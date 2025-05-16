@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "API Inventario GLPI",
-    "version": "1.0.0",
-    "description": "Consulta de inventario GLPI desde un GPT"
+    "version": "1.0.1",
+    "description": "Consulta de inventario GLPI desde GPT"
   },
   "servers": [
     {
@@ -26,51 +26,30 @@
                     "equipos": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "type": "object",
+                        "properties": {
+                          "ID": { "type": "string" },
+                          "Marca": { "type": "string" },
+                          "Modelo": { "type": "string" },
+                          "Estado": { "type": "string" },
+                          "Serial": { "type": "string" },
+                          "Tipo_Dispositivo": { "type": "string" },
+                          "Fecha_Asignación": { "type": "string" },
+                          "Propietario": { "type": ["string", "null"] },
+                          "Ubicación": { "type": "string" },
+                          "Ubicación_Interna": { "type": "string" },
+                          "Entidad": { "type": "string" }
+                        }
                       }
                     },
-                    "total": {
-                      "type": "integer"
-                    }
+                    "total": { "type": "integer" }
                   }
                 }
               }
             }
-          },
-          "500": {
-            "description": "No se pudo iniciar sesión o consultar inventario"
-          }
-        }
-      }
-    },
-    "/buscar-por-usuario": {
-      "get": {
-        "operationId": "buscarPorUsuario",
-        "summary": "Buscar equipos asignados a un usuario",
-        "parameters": [
-          {
-            "name": "usuario",
-            "in": "query",
-            "required": true,
-            "description": "Nombre completo del usuario (ej: Daniel Sinisterra)",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Equipos encontrados"
-          },
-          "404": {
-            "description": "Usuario no encontrado o sin equipos"
-          },
-          "500": {
-            "description": "Error interno al buscar el usuario"
           }
         }
       }
     }
   }
 }
-
