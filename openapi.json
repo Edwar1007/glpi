@@ -1,0 +1,76 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GLPI Inventario Render",
+    "version": "1.0.0",
+    "description": "API para consultar equipos desde GLPI alojado en Render, incluyendo inventario completo y búsqueda por usuario."
+  },
+  "servers": [
+    {
+      "url": "https://glpi-jntn.onrender.com"
+    }
+  ],
+  "paths": {
+    "/inventario": {
+      "get": {
+        "summary": "Obtener inventario completo",
+        "operationId": "obtenerInventario",
+        "responses": {
+          "200": {
+            "description": "Inventario consultado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "equipos": {
+                      "type": "array",
+                      "items": { "type": "object" }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No se encontraron equipos"
+          },
+          "500": {
+            "description": "No se pudo iniciar sesión"
+          }
+        }
+      }
+    },
+    "/buscar-por-usuario": {
+      "get": {
+        "summary": "Buscar equipos por nombre de usuario",
+        "operationId": "buscarPorUsuario",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Nombre completo del usuario a buscar"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Equipos asignados al usuario"
+          },
+          "404": {
+            "description": "Usuario no encontrado o sin equipos"
+          },
+          "500": {
+            "description": "Error al comunicarse con GLPI"
+          }
+        }
+      }
+    }
+  }
+}
