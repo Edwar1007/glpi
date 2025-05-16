@@ -46,22 +46,12 @@ def obtener_inventario(token, rango=300):
         return [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in data]
     return []
 
-# 🔹 Buscar equipos por nombre de usuario
-def buscar_por_usuario(token, nombre_usuario):
-    headers = {"Session-Token": token, "Content-Type": "application/json"}
-    url = f"{GLPI_URL}/search/Computer?criteria[0][field]=9&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        data = response.json().get("data", [])
-        return [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in data]
-    return []
-
-# 🔸 Ruta raíz
+# 🔹 Ruta raíz
 @app.route('/')
 def home():
     return "API GLPI funcionando correctamente desde Render"
 
-# 🔸 Ruta: /inventario
+# 🔹 Ruta: /inventario
 @app.route('/inventario', methods=['GET'])
 def inventario():
     token = iniciar_sesion()
@@ -71,7 +61,7 @@ def inventario():
     cerrar_sesion(token)
     return jsonify({"total": len(equipos), "equipos": equipos})
 
-# 🔸 Ruta: /buscar-por-usuario
+# 🔹 Ruta: /buscar-por-usuario (busca por Propietario - campo 6)
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
     nombre_usuario = request.args.get("usuario")
@@ -82,13 +72,21 @@ def buscar_usuario():
     if not token:
         return jsonify({"error": "No se pudo iniciar sesión en GLPI"}), 500
 
-    equipos = buscar_por_usuario(token, nombre_usuario)
+    headers = {"Session-Token": token, "Content-Type": "application/json"}
+    url = f"{GLPI_URL}/search/Computer?criteria[0][field]=6&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
+
+    response = requests.get(url, headers=headers)
     cerrar_sesion(token)
 
-    if equipos:
-        return jsonify({"total": len(equipos), "equipos": equipos})
-    else:
-        return jsonify({"mensaje": "No se encontraron equipos asignados a ese usuario."}), 404
+    if response.status_code == 200:
+        data = response.json().get("data", [])
+        equipos = [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in data]
+        if equipos:
+            return jsonify({"total": len(equipos), "equipos": equipos})
+        else:
+            return jsonify({"mensaje": "No se encontraron equipos asignados a ese usuario."}), 404
+
+    return jsonify({"error": "Error al comunicarse con GLPI"}), 500
 
 # 🔸 Para desarrollo local
 if __name__ == '__main__':
