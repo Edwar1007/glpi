@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # 🔐 Configuración del API GLPI
 GLPI_URL = "http://soporteti.sutex.com/glpi/apirest.php"
-API_TOKEN = os.getenv("API_TOKEN")  # tomado desde las variables de entorno
+API_TOKEN = os.getenv("API_TOKEN")  # Se lee desde variables de entorno en Render
 
 # 🔹 Mapeo de campos
 CAMPOS_MAP = {
@@ -61,7 +61,7 @@ def inventario():
     cerrar_sesion(token)
     return jsonify({"total": len(equipos), "equipos": equipos})
 
-# 🔹 Ruta: /buscar-por-usuario (busca por Propietario - campo 6)
+# 🔹 Ruta: /buscar-por-usuario (ahora con búsqueda por nombre real del usuario)
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
     nombre_usuario = request.args.get("usuario")
@@ -73,21 +73,32 @@ def buscar_usuario():
         return jsonify({"error": "No se pudo iniciar sesión en GLPI"}), 500
 
     headers = {"Session-Token": token, "Content-Type": "application/json"}
-    url = f"{GLPI_URL}/search/Computer?criteria[0][field]=6&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
 
-    response = requests.get(url, headers=headers)
+    # Paso 1: Buscar el ID del usuario usando coincidencia con su nombre
+    url_usuario = f"{GLPI_URL}/search/User?criteria[0][field]=1&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}"
+    res_user = requests.get(url_usuario, headers=headers)
+
+    if res_user.status_code != 200 or not res_user.json().get("data"):
+        cerrar_sesion(token)
+        return jsonify({"mensaje": "No se encontró ningún usuario con ese nombre."}), 404
+
+    user_id = res_user.json()["data"][0]["id"]
+
+    # Paso 2: Buscar equipos asignados al usuario usando su ID
+    url_equipos = f"{GLPI_URL}/search/Computer?criteria[0][field]=9&criteria[0][searchtype]=equals&criteria[0][value]={user_id}&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
+    res_eq = requests.get(url_equipos, headers=headers)
     cerrar_sesion(token)
 
-    if response.status_code == 200:
-        data = response.json().get("data", [])
+    if res_eq.status_code == 200:
+        data = res_eq.json().get("data", [])
         equipos = [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in data]
         if equipos:
             return jsonify({"total": len(equipos), "equipos": equipos})
         else:
-            return jsonify({"mensaje": "No se encontraron equipos asignados a ese usuario."}), 404
+            return jsonify({"mensaje": "El usuario fue encontrado, pero no tiene equipos asignados."}), 404
 
     return jsonify({"error": "Error al comunicarse con GLPI"}), 500
 
-# 🔸 Para desarrollo local
+# 🔸 Ejecutar localmente (desactivado en Render)
 if __name__ == '__main__':
     app.run(debug=True)
