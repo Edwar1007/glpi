@@ -4,9 +4,11 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
+# 🔐 Configuración
 GLPI_URL = "http://soporteti.sutex.com/glpi/apirest.php"
-API_TOKEN = os.getenv("API_TOKEN")
+API_TOKEN = os.getenv("API_TOKEN")  # Desde variable de entorno en Render
 
+# 🔹 Campos legibles
 CAMPOS_MAP = {
     "1": "ID",
     "19": "Fecha_Asignación",
@@ -21,21 +23,22 @@ CAMPOS_MAP = {
     "80": "Entidad"
 }
 
+# 🔹 Autenticación
 def iniciar_sesion():
     headers = {"Authorization": f"user_token {API_TOKEN}", "Content-Type": "application/json"}
-    response = requests.get(f"{GLPI_URL}/initSession", headers=headers)
-    if response.status_code == 200:
-        return response.json().get("session_token")
-    return None
+    r = requests.get(f"{GLPI_URL}/initSession", headers=headers)
+    return r.json().get("session_token") if r.status_code == 200 else None
 
 def cerrar_sesion(token):
     headers = {"Session-Token": token}
     requests.get(f"{GLPI_URL}/killSession", headers=headers)
 
+# 🔹 Página raíz
 @app.route('/')
 def home():
     return "API GLPI funcionando correctamente desde Render"
 
+# 🔹 Buscar por usuario (realname o firstname)
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
     nombre_usuario = request.args.get("usuario")
@@ -48,32 +51,68 @@ def buscar_usuario():
 
     headers = {"Session-Token": token, "Content-Type": "application/json"}
 
-    # Diagnóstico: búsqueda en realname y firstname
+    # Buscar en nombre o apellido
     url_usuario = (
         f"{GLPI_URL}/search/User?"
         f"criteria[0][field]=9&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}"
         f"&criteria[0][link]=OR"
         f"&criteria[1][field]=34&criteria[1][searchtype]=contains&criteria[1][value]={nombre_usuario}"
     )
-
     res_user = requests.get(url_usuario, headers=headers)
+    print("🔍 Resultado crudo usuario:", res_user.text)
 
-    print("🔍 Resultado crudo del usuario:", res_user.text)
+    if res_user.status_code != 200 or not res_user.json().get("data"):
+        cerrar_sesion(token)
+        return jsonify({"mensaje": "No se encontró ningún usuario con ese nombre."}), 404
 
+    user_id = res_user.json()["data"][0]["id"]
+
+    # Buscar equipos asignados a ese usuario
+    url_equipos = (
+        f"{GLPI_URL}/search/Computer?"
+        f"criteria[0][field]=9&criteria[0][searchtype]=equals&criteria[0][value]={user_id}"
+        f"&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31"
+        f"&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
+    )
+    res_eq = requests.get(url_equipos, headers=headers)
     cerrar_sesion(token)
 
-    try:
-        data = res_user.json()
-        return jsonify({
-            "mensaje": "Resultado de búsqueda crudo",
-            "nombre_buscado": nombre_usuario,
-            "respuesta_glpi": data
-        })
-    except Exception as e:
-        return jsonify({"error": "No se pudo interpretar la respuesta del servidor", "detalle": str(e)}), 500
+    if res_eq.status_code == 200:
+        data = res_eq.json().get("data", [])
+        equipos = [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in data]
+        if equipos:
+            return jsonify({"total": len(equipos), "equipos": equipos})
+        else:
+            return jsonify({"mensaje": "El usuario fue encontrado, pero no tiene equipos asignados."}), 404
 
-# Ejecutar localmente si es necesario
+    return jsonify({"error": "Error al comunicarse con GLPI"}), 500
+
+# 🔎 Diagnóstico: ver cómo están guardados los usuarios
+@app.route('/usuarios-debug', methods=['GET'])
+def usuarios_debug():
+    token = iniciar_sesion()
+    if not token:
+        return jsonify({"error": "No se pudo iniciar sesión"}), 500
+
+    headers = {"Session-Token": token, "Content-Type": "application/json"}
+    url = f"{GLPI_URL}/search/User?range=0-50&forcedisplay[0]=1&forcedisplay[1]=9&forcedisplay[2]=34"
+    res = requests.get(url, headers=headers)
+    cerrar_sesion(token)
+
+    if res.status_code == 200:
+        datos = res.json().get("data", [])
+        usuarios = []
+        for u in datos:
+            campos = {str(item["field"]): item["value"] for item in u.get("items", [])}
+            usuarios.append({
+                "id": u.get("id"),
+                "login": campos.get("1"),
+                "apellido": campos.get("9"),
+                "nombre": campos.get("34")
+            })
+        return jsonify({"usuarios": usuarios})
+    return jsonify({"error": "No se pudo obtener la lista de usuarios"}), 500
+
+# 🔸 Ejecutar localmente
 if __name__ == '__main__':
     app.run(debug=True)
-
-    
