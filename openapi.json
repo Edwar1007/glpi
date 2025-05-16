@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "GLPI Inventario Render",
+    "title": "API Inventario GLPI",
     "version": "1.0.0",
-    "description": "API para consultar equipos desde GLPI alojado en Render, incluyendo inventario completo y búsqueda por usuario."
+    "description": "Consulta de inventario GLPI desde un GPT"
   },
   "servers": [
     {
@@ -13,11 +13,11 @@
   "paths": {
     "/inventario": {
       "get": {
-        "summary": "Obtener inventario completo",
         "operationId": "obtenerInventario",
+        "summary": "Obtener inventario completo",
         "responses": {
           "200": {
-            "description": "Inventario consultado exitosamente",
+            "description": "Equipos consultados con éxito",
             "content": {
               "application/json": {
                 "schema": {
@@ -25,7 +25,9 @@
                   "properties": {
                     "equipos": {
                       "type": "array",
-                      "items": { "type": "object" }
+                      "items": {
+                        "type": "object"
+                      }
                     },
                     "total": {
                       "type": "integer"
@@ -35,42 +37,40 @@
               }
             }
           },
-          "404": {
-            "description": "No se encontraron equipos"
-          },
           "500": {
-            "description": "No se pudo iniciar sesión"
+            "description": "No se pudo iniciar sesión o consultar inventario"
           }
         }
       }
     },
     "/buscar-por-usuario": {
       "get": {
-        "summary": "Buscar equipos por nombre de usuario",
         "operationId": "buscarPorUsuario",
+        "summary": "Buscar equipos asignados a un usuario",
         "parameters": [
           {
             "name": "usuario",
             "in": "query",
             "required": true,
+            "description": "Nombre completo del usuario (ej: Daniel Sinisterra)",
             "schema": {
               "type": "string"
-            },
-            "description": "Nombre completo del usuario a buscar"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Equipos asignados al usuario"
+            "description": "Equipos encontrados"
           },
           "404": {
             "description": "Usuario no encontrado o sin equipos"
           },
           "500": {
-            "description": "Error al comunicarse con GLPI"
+            "description": "Error interno al buscar el usuario"
           }
         }
       }
     }
   }
 }
+
