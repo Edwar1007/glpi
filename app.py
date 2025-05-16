@@ -96,12 +96,11 @@ def usuarios_debug():
 
     headers = {"Session-Token": token, "Content-Type": "application/json"}
     
-    # 🔍 Consulta simple sin filtros forzados
-    url = f"{GLPI_URL}/search/User?range=0-20"
+    url = f"{GLPI_URL}/search/User?range=0-50"
     res = requests.get(url, headers=headers)
     cerrar_sesion(token)
 
-    if res.status_code == 200:
+    if res.status_code in [200, 206]:
         try:
             datos = res.json()
             return jsonify({"usuarios_raw": datos})
@@ -109,7 +108,6 @@ def usuarios_debug():
             return jsonify({"error": "No se pudo interpretar la respuesta", "detalle": str(e)}), 500
     else:
         return jsonify({"error": "No se pudo obtener la lista de usuarios", "codigo": res.status_code}), 500
-
 # 🔸 Ejecutar localmente
 if __name__ == '__main__':
     app.run(debug=True)
