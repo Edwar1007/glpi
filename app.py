@@ -6,9 +6,9 @@ app = Flask(__name__)
 
 # 🔐 Configuración del API GLPI
 GLPI_URL = "http://soporteti.sutex.com/glpi/apirest.php"
-API_TOKEN = os.getenv("API_TOKEN")  # Se lee desde variables de entorno en Render
+API_TOKEN = os.getenv("API_TOKEN")  # Desde variable de entorno
 
-# 🔹 Mapeo de campos
+# 🔹 Mapeo de campos visibles
 CAMPOS_MAP = {
     "1": "ID",
     "19": "Fecha_Asignación",
@@ -23,7 +23,7 @@ CAMPOS_MAP = {
     "80": "Entidad"
 }
 
-# 🔹 Función para iniciar sesión
+# 🔹 Iniciar sesión
 def iniciar_sesion():
     headers = {"Authorization": f"user_token {API_TOKEN}", "Content-Type": "application/json"}
     response = requests.get(f"{GLPI_URL}/initSession", headers=headers)
@@ -36,7 +36,7 @@ def cerrar_sesion(token):
     headers = {"Session-Token": token}
     requests.get(f"{GLPI_URL}/killSession", headers=headers)
 
-# 🔹 Obtener equipos del inventario
+# 🔹 Obtener todo el inventario
 def obtener_inventario(token, rango=300):
     headers = {"Session-Token": token, "Content-Type": "application/json"}
     url = f"{GLPI_URL}/search/Computer/?range=0-{rango}&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
@@ -46,12 +46,12 @@ def obtener_inventario(token, rango=300):
         return [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in data]
     return []
 
-# 🔹 Ruta raíz
+# 🔹 Ruta principal
 @app.route('/')
 def home():
     return "API GLPI funcionando correctamente desde Render"
 
-# 🔹 Ruta: /inventario
+# 🔹 Ruta para ver el inventario completo
 @app.route('/inventario', methods=['GET'])
 def inventario():
     token = iniciar_sesion()
@@ -61,7 +61,7 @@ def inventario():
     cerrar_sesion(token)
     return jsonify({"total": len(equipos), "equipos": equipos})
 
-# 🔹 Ruta: /buscar-por-usuario (ahora con búsqueda por nombre real del usuario)
+# 🔹 Ruta para buscar por nombre completo de usuario (nombre y apellido)
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
     nombre_usuario = request.args.get("usuario")
@@ -74,17 +74,24 @@ def buscar_usuario():
 
     headers = {"Session-Token": token, "Content-Type": "application/json"}
 
-    # Paso 1: Buscar el ID del usuario usando coincidencia con su nombre
-    url_usuario = f"{GLPI_URL}/search/User?criteria[0][field]=1&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}"
+    # Buscar en firstname (34) o realname (9)
+    url_usuario = (
+        f"{GLPI_URL}/search/User?"
+        f"criteria[0][field]=9&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}"
+        f"&criteria[0][link]=OR"
+        f"&criteria[1][field]=34&criteria[1][searchtype]=contains&criteria[1][value]={nombre_usuario}"
+    )
+
     res_user = requests.get(url_usuario, headers=headers)
 
     if res_user.status_code != 200 or not res_user.json().get("data"):
         cerrar_sesion(token)
         return jsonify({"mensaje": "No se encontró ningún usuario con ese nombre."}), 404
 
+    # Usamos el primer usuario coincidente
     user_id = res_user.json()["data"][0]["id"]
 
-    # Paso 2: Buscar equipos asignados al usuario usando su ID
+    # Buscar equipos asignados a ese usuario
     url_equipos = f"{GLPI_URL}/search/Computer?criteria[0][field]=9&criteria[0][searchtype]=equals&criteria[0][value]={user_id}&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
     res_eq = requests.get(url_equipos, headers=headers)
     cerrar_sesion(token)
@@ -99,6 +106,6 @@ def buscar_usuario():
 
     return jsonify({"error": "Error al comunicarse con GLPI"}), 500
 
-# 🔸 Ejecutar localmente (desactivado en Render)
+# 🔸 Ejecutar localmente (opcional)
 if __name__ == '__main__':
     app.run(debug=True)
