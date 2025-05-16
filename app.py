@@ -41,7 +41,7 @@ def home():
 # 🔹 Buscar por usuario (realname o firstname)
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
-    nombre_usuario = request.args.get("usuario")
+    nombre_usuario = request.args.get("usuario", "").strip()
     if not nombre_usuario:
         return jsonify({"error": "Debe proporcionar el parámetro 'usuario'"}), 400
 
@@ -51,15 +51,22 @@ def buscar_usuario():
 
     headers = {"Session-Token": token, "Content-Type": "application/json"}
 
-    # Buscar en nombre o apellido
-    url_usuario = (
-        f"{GLPI_URL}/search/User?"
-        f"criteria[0][field]=9&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}"
-        f"&criteria[0][link]=OR"
-        f"&criteria[1][field]=34&criteria[1][searchtype]=contains&criteria[1][value]={nombre_usuario}"
-    )
+    # 🧠 Separar las palabras del nombre ingresado
+    palabras = nombre_usuario.lower().split()
+
+    # 🔍 Construir criterios dinámicos
+    criteria = ""
+    for i, palabra in enumerate(palabras):
+        criteria += f"criteria[{i * 2}][field]=9&criteria[{i * 2}][searchtype]=contains&criteria[{i * 2}][value]={palabra}&"
+        criteria += f"criteria[{i * 2}][link]=OR&"
+        criteria += f"criteria[{i * 2 + 1}][field]=34&criteria[{i * 2 + 1}][searchtype]=contains&criteria[{i * 2 + 1}][value]={palabra}&"
+        if i < len(palabras) - 1:
+            criteria += f"criteria[{i * 2 + 1}][link]=AND&"
+
+    url_usuario = f"{GLPI_URL}/search/User?{criteria}range=0-10"
+
     res_user = requests.get(url_usuario, headers=headers)
-    print("🔍 Resultado crudo usuario:", res_user.text)
+    print("🔍 URL consulta usuario:", url_usuario)
 
     if res_user.status_code != 200 or not res_user.json().get("data"):
         cerrar_sesion(token)
@@ -67,7 +74,7 @@ def buscar_usuario():
 
     user_id = res_user.json()["data"][0]["id"]
 
-    # Buscar equipos asignados a ese usuario
+    # 🔁 Buscar equipos asignados a ese usuario
     url_equipos = (
         f"{GLPI_URL}/search/Computer?"
         f"criteria[0][field]=9&criteria[0][searchtype]=equals&criteria[0][value]={user_id}"
@@ -86,6 +93,7 @@ def buscar_usuario():
             return jsonify({"mensaje": "El usuario fue encontrado, pero no tiene equipos asignados."}), 404
 
     return jsonify({"error": "Error al comunicarse con GLPI"}), 500
+
 
 # 🔎 Diagnóstico: ver cómo están guardados los usuarios
 @app.route('/usuarios-debug', methods=['GET'])
