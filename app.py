@@ -1,14 +1,11 @@
-import os
 import requests
 from flask import Flask, jsonify, request
 
-app = Flask(__name__)
-
-# 🔐 Configuración
+# 🔹 Configuración de GLPI
 GLPI_URL = "http://soporteti.sutex.com/glpi/apirest.php"
-API_TOKEN = os.getenv("API_TOKEN")  # Desde variable de entorno en Render
+API_TOKEN = "mkjpcCnyDJzIzC0PgHgDhOK7NT3Z7YMDnD4BEIuO"
 
-# 🔹 Campos legibles
+# 🔹 Mapeo de campos legibles
 CAMPOS_MAP = {
     "1": "ID",
     "19": "Fecha_Asignación",
@@ -23,26 +20,53 @@ CAMPOS_MAP = {
     "80": "Entidad"
 }
 
-# 🔹 Autenticación
+app = Flask(__name__)
+
+# 🔹 Sesiones GLPI
 def iniciar_sesion():
     headers = {"Authorization": f"user_token {API_TOKEN}", "Content-Type": "application/json"}
     r = requests.get(f"{GLPI_URL}/initSession", headers=headers)
     return r.json().get("session_token") if r.status_code == 200 else None
 
-def cerrar_sesion(token):
-    headers = {"Session-Token": token}
-    requests.get(f"{GLPI_URL}/killSession", headers=headers)
+def cerrar_sesion(session_token):
+    requests.get(f"{GLPI_URL}/killSession", headers={"Session-Token": session_token})
 
-# 🔹 Página raíz
+# 🔹 Inventario completo
+def obtener_inventario(session_token, rango=300):
+    headers = {"Session-Token": session_token, "Content-Type": "application/json"}
+    url = (
+        f"{GLPI_URL}/search/Computer/?range=0-{rango}"
+        "&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23"
+        "&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4"
+        "&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6"
+        "&forcedisplay[9]=70&forcedisplay[10]=80"
+    )
+    r = requests.get(url, headers=headers)
+    if r.status_code in [200, 206]:
+        datos = r.json().get("data", [])
+        return [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in datos]
+    return None
+
+# 🔹 Ruta inicio
 @app.route('/')
 def home():
-    return "API GLPI funcionando correctamente desde Render"
+    return jsonify({"mensaje": "API GLPI funcionando correctamente desde Render"})
 
-# 🔹 Buscar por usuario (realname o firstname)
+# 🔹 Ruta inventario
+@app.route('/inventario')
+def inventario():
+    token = iniciar_sesion()
+    if not token:
+        return jsonify({"error": "No se pudo iniciar sesión"}), 500
+    equipos = obtener_inventario(token)
+    cerrar_sesion(token)
+    return jsonify({"equipos": equipos, "total": len(equipos)}) if equipos else jsonify({"error": "No se encontraron equipos"}), 404
+
+# 🔹 Buscar por usuario (nombre completo)
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
-    nombre_usuario = request.args.get("usuario", "").strip()
-    if not nombre_usuario:
+    nombre_completo = request.args.get("usuario", "").strip().lower()
+    if not nombre_completo:
         return jsonify({"error": "Debe proporcionar el parámetro 'usuario'"}), 400
 
     token = iniciar_sesion()
@@ -50,39 +74,27 @@ def buscar_usuario():
         return jsonify({"error": "No se pudo iniciar sesión en GLPI"}), 500
 
     headers = {"Session-Token": token, "Content-Type": "application/json"}
+    url_usuarios = f"{GLPI_URL}/search/User?range=0-500&forcedisplay[0]=1&forcedisplay[1]=9&forcedisplay[2]=34"
+    res_user = requests.get(url_usuarios, headers=headers)
 
-    # 🧠 Separar las palabras del nombre ingresado
-    palabras = nombre_usuario.lower().split()
-
-    # 🔍 Construir criterios dinámicos para buscar usuario
-    criteria = ""
-    for i, palabra in enumerate(palabras):
-        criteria += f"criteria[{i * 2}][field]=9&criteria[{i * 2}][searchtype]=contains&criteria[{i * 2}][value]={palabra}&"
-        criteria += f"criteria[{i * 2}][link]=OR&"
-        criteria += f"criteria[{i * 2 + 1}][field]=34&criteria[{i * 2 + 1}][searchtype]=contains&criteria[{i * 2 + 1}][value]={palabra}&"
-        if i < len(palabras) - 1:
-            criteria += f"criteria[{i * 2 + 1}][link]=AND&"
-
-    url_usuario = f"{GLPI_URL}/search/User?{criteria}range=0-10"
-    res_user = requests.get(url_usuario, headers=headers)
-
-    if res_user.status_code != 200 or not res_user.json().get("data"):
+    if res_user.status_code not in [200, 206]:
         cerrar_sesion(token)
-        return jsonify({"mensaje": "No se encontró ningún usuario con ese nombre."}), 404
+        return jsonify({"error": "No se pudo obtener la lista de usuarios"}), 500
 
-    # ✅ Obtener login del primer usuario encontrado
-    user_data = res_user.json()["data"][0].get("items", [])
-    login = ""
-    for campo in user_data:
-        if campo.get("field") == 1:
-            login = campo.get("value")
+    usuarios = res_user.json().get("data", [])
+    login = None
+
+    for u in usuarios:
+        campos = {i["field"]: i["value"] for i in u.get("items", [])}
+        full_name = f"{campos.get(9, '').lower()} {campos.get(34, '').lower()}".strip()
+        if nombre_completo in full_name:
+            login = campos.get(1)
             break
 
     if not login:
         cerrar_sesion(token)
-        return jsonify({"error": "No se pudo extraer el nombre de usuario (login)"}), 500
+        return jsonify({"mensaje": "No se encontró ningún usuario con ese nombre."}), 404
 
-    # 🔁 Buscar equipos asignados usando el login como valor del campo 9
     url_equipos = (
         f"{GLPI_URL}/search/Computer?"
         f"criteria[0][field]=9&criteria[0][searchtype]=contains&criteria[0][value]={login}"
@@ -95,33 +107,10 @@ def buscar_usuario():
     if res_eq.status_code == 200:
         data = res_eq.json().get("data", [])
         equipos = [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in data]
-        if equipos:
-            return jsonify({"total": len(equipos), "equipos": equipos})
-        else:
-            return jsonify({"mensaje": "El usuario fue encontrado, pero no tiene equipos asignados."}), 404
+        return jsonify({"total": len(equipos), "equipos": equipos}) if equipos else jsonify({"mensaje": "El usuario fue encontrado, pero no tiene equipos asignados."}), 404
 
     return jsonify({"error": "Error al comunicarse con GLPI"}), 500
-# 🔎 Diagnóstico: ver cómo están guardados los usuarios
-@app.route('/usuarios-debug', methods=['GET'])
-def usuarios_debug():
-    token = iniciar_sesion()
-    if not token:
-        return jsonify({"error": "No se pudo iniciar sesión"}), 500
 
-    headers = {"Session-Token": token, "Content-Type": "application/json"}
-    
-    url = f"{GLPI_URL}/search/User?range=0-50"
-    res = requests.get(url, headers=headers)
-    cerrar_sesion(token)
-
-    if res.status_code in [200, 206]:
-        try:
-            datos = res.json()
-            return jsonify({"usuarios_raw": datos})
-        except Exception as e:
-            return jsonify({"error": "No se pudo interpretar la respuesta", "detalle": str(e)}), 500
-    else:
-        return jsonify({"error": "No se pudo obtener la lista de usuarios", "codigo": res.status_code}), 500
-# 🔸 Ejecutar localmente
+# 🔹 Ejecutar localmente
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)
