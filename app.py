@@ -1,3 +1,4 @@
+import os
 import requests
 from flask import Flask, jsonify, request
 
@@ -128,6 +129,7 @@ def buscar_usuario():
 
     return jsonify({"error": f"La búsqueda por equipos asignados a {nombre_completo} falló debido a un problema al comunicarse con la API correspondiente."}), 500
 
-# 🔹 Ejecutar localmente
+# 🔹 Ejecutar en Render o localmente
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
