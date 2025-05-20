@@ -31,12 +31,19 @@ def iniciar_sesion():
 def cerrar_sesion(session_token):
     requests.get(f"{GLPI_URL}/killSession", headers={"Session-Token": session_token})
 
-# 🔹 Inventario completo (con paginación)
-def obtener_inventario(session_token, max_rango=500, paso=100):
+# 🔹 Inventario completo con paginación dinámica
+def obtener_inventario(session_token, paso=50):
     headers = {"Session-Token": session_token, "Content-Type": "application/json"}
+    
+    # Primero consultamos cuántos equipos hay
+    url_conteo = f"{GLPI_URL}/search/Computer/?range=0-0"
+    r = requests.get(url_conteo, headers=headers)
+    if "Content-Range" not in r.headers:
+        return None
+    total = int(r.headers["Content-Range"].split("/")[-1])
+    
     equipos = []
-
-    for inicio in range(0, max_rango, paso):
+    for inicio in range(0, total, paso):
         fin = inicio + paso - 1
         url = (
             f"{GLPI_URL}/search/Computer/?range={inicio}-{fin}"
