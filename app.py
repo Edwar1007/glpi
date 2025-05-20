@@ -1,4 +1,5 @@
 import os
+import unicodedata
 import requests
 from flask import Flask, jsonify, request
 
@@ -22,6 +23,10 @@ CAMPOS_MAP = {
 }
 
 app = Flask(__name__)
+
+# 🔹 Función para normalizar nombres (eliminar tildes y minúsculas)
+def normalizar(texto):
+    return unicodedata.normalize("NFKD", texto.strip().lower()).encode("ascii", "ignore").decode("utf-8")
 
 # 🔹 Sesiones GLPI
 def iniciar_sesion():
@@ -69,12 +74,14 @@ def todos_equipos():
 
     return jsonify({"equipos": equipos, "total": len(equipos)})
 
-# 🔹 Buscar por usuario (nombre completo flexible)
+# 🔹 Buscar por usuario (mejorado: tildes, espacios, mayúsculas)
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
-    nombre_completo = request.args.get("usuario", "").strip().lower()
+    nombre_completo = request.args.get("usuario", "").strip()
     if not nombre_completo:
         return jsonify({"error": "Debe proporcionar el parámetro 'usuario'"}), 400
+
+    nombre_normalizado = normalizar(nombre_completo)
 
     token = iniciar_sesion()
     if not token:
@@ -93,10 +100,11 @@ def buscar_usuario():
 
     for u in usuarios:
         campos = {i["field"]: i["value"] for i in u.get("items", [])}
-        full_name = f"{campos.get(9, '').lower()} {campos.get(34, '').lower()}".strip()
+        full_name = f"{campos.get(9, '')} {campos.get(34, '')}"
+        full_name_norm = normalizar(full_name)
 
-        partes_nombre = nombre_completo.split()
-        if all(p in full_name for p in partes_nombre):
+        partes = nombre_normalizado.split()
+        if all(p in full_name_norm for p in partes):
             login = campos.get(1)
             break
 
