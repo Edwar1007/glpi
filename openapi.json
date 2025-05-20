@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "API Inventario GLPI",
-    "version": "1.0.1",
-    "description": "Consulta de inventario GLPI desde GPT"
+    "version": "1.0.2",
+    "description": "Consulta de inventario GLPI con paginación"
   },
   "servers": [
     {
@@ -14,7 +14,23 @@
     "/todos-equipos": {
       "get": {
         "operationId": "obtenerInventario",
-        "summary": "Obtener inventario completo",
+        "summary": "Obtener inventario con paginación",
+        "parameters": [
+          {
+            "name": "inicio",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Índice de inicio de la búsqueda"
+          },
+          {
+            "name": "cantidad",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 50 },
+            "description": "Cantidad de equipos a devolver"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Equipos consultados con éxito",
