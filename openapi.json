@@ -7,11 +7,11 @@
   },
   "servers": [
     {
-      "url": "https://glpi-jntn.onrender.com/inventario"
+      "url": "https://glpi-jntn.onrender.com"
     }
   ],
   "paths": {
-    "/inventario": {
+    "/todos-equipos": {
       "get": {
         "operationId": "obtenerInventario",
         "summary": "Obtener inventario completo",
