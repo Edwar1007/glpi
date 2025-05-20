@@ -69,7 +69,7 @@ def todos_equipos():
 
     return jsonify({"equipos": equipos, "total": len(equipos)})
 
-# 🔹 Ruta para buscar por usuario
+# 🔹 Buscar por usuario (nombre completo flexible)
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
     nombre_completo = request.args.get("usuario", "").strip().lower()
@@ -94,7 +94,9 @@ def buscar_usuario():
     for u in usuarios:
         campos = {i["field"]: i["value"] for i in u.get("items", [])}
         full_name = f"{campos.get(9, '').lower()} {campos.get(34, '').lower()}".strip()
-        if nombre_completo in full_name:
+
+        partes_nombre = nombre_completo.split()
+        if all(p in full_name for p in partes_nombre):
             login = campos.get(1)
             break
 
