@@ -31,21 +31,27 @@ def iniciar_sesion():
 def cerrar_sesion(session_token):
     requests.get(f"{GLPI_URL}/killSession", headers={"Session-Token": session_token})
 
-# 🔹 Inventario completo
-def obtener_inventario(session_token, rango=300):
+# 🔹 Inventario completo (con paginación)
+def obtener_inventario(session_token, max_rango=500, paso=100):
     headers = {"Session-Token": session_token, "Content-Type": "application/json"}
-    url = (
-        f"{GLPI_URL}/search/Computer/?range=0-{rango}"
-        "&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23"
-        "&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4"
-        "&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6"
-        "&forcedisplay[9]=70&forcedisplay[10]=80"
-    )
-    r = requests.get(url, headers=headers)
-    if r.status_code in [200, 206]:
+    equipos = []
+
+    for inicio in range(0, max_rango, paso):
+        fin = inicio + paso - 1
+        url = (
+            f"{GLPI_URL}/search/Computer/?range={inicio}-{fin}"
+            "&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23"
+            "&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4"
+            "&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6"
+            "&forcedisplay[9]=70&forcedisplay[10]=80"
+        )
+        r = requests.get(url, headers=headers)
+        if r.status_code not in [200, 206]:
+            continue
         datos = r.json().get("data", [])
-        return [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in datos]
-    return None
+        equipos.extend([{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in datos])
+
+    return equipos
 
 # 🔹 Ruta inicio
 @app.route('/')
@@ -109,7 +115,7 @@ def buscar_usuario():
         equipos = [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in data]
         return jsonify({"total": len(equipos), "equipos": equipos}) if equipos else jsonify({"mensaje": "El usuario fue encontrado, pero no tiene equipos asignados."}), 404
 
-    return jsonify({"error": "Error al comunicarse con GLPI"}), 500
+    return jsonify({"error": f"La búsqueda por equipos asignados a {nombre_completo} falló debido a un problema al comunicarse con la API correspondiente."}), 500
 
 # 🔹 Ejecutar localmente
 if __name__ == '__main__':
