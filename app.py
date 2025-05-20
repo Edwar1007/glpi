@@ -35,7 +35,6 @@ def cerrar_sesion(session_token):
 def obtener_inventario(session_token, paso=50):
     headers = {"Session-Token": session_token, "Content-Type": "application/json"}
     
-    # Primero consultamos cuántos equipos hay
     url_conteo = f"{GLPI_URL}/search/Computer/?range=0-0"
     r = requests.get(url_conteo, headers=headers)
     if "Content-Range" not in r.headers:
@@ -74,6 +73,11 @@ def inventario():
     equipos = obtener_inventario(token)
     cerrar_sesion(token)
     return jsonify({"equipos": equipos, "total": len(equipos)}) if equipos else jsonify({"error": "No se encontraron equipos"}), 404
+
+# 🔹 NUEVA RUTA COMPATIBLE CON '/todos-equipos'
+@app.route('/todos-equipos')
+def todos_equipos():
+    return inventario()
 
 # 🔹 Buscar por usuario (nombre completo)
 @app.route('/buscar-por-usuario', methods=['GET'])
