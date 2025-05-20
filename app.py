@@ -3,11 +3,9 @@ import unicodedata
 import requests
 from flask import Flask, jsonify, request
 
-# 🔹 Configuración de GLPI
 GLPI_URL = "http://soporteti.sutex.com/glpi/apirest.php"
 API_TOKEN = "mkjpcCnyDJzIzC0PgHgDhOK7NT3Z7YMDnD4BEIuO"
 
-# 🔹 Mapeo de campos legibles
 CAMPOS_MAP = {
     "1": "ID",
     "19": "Fecha_Asignación",
@@ -24,11 +22,9 @@ CAMPOS_MAP = {
 
 app = Flask(__name__)
 
-# 🔹 Función para normalizar nombres
 def normalizar(texto):
     return unicodedata.normalize("NFKD", texto.strip().lower()).encode("ascii", "ignore").decode("utf-8")
 
-# 🔹 Sesiones GLPI
 def iniciar_sesion():
     headers = {"Authorization": f"user_token {API_TOKEN}", "Content-Type": "application/json"}
     r = requests.get(f"{GLPI_URL}/initSession", headers=headers)
@@ -37,52 +33,41 @@ def iniciar_sesion():
 def cerrar_sesion(session_token):
     requests.get(f"{GLPI_URL}/killSession", headers={"Session-Token": session_token})
 
-# 🔹 Ruta raíz
 @app.route('/')
 def home():
     return jsonify({"mensaje": "API GLPI funcionando correctamente desde Render"})
 
-# 🔹 Ruta que pagina internamente y devuelve todo
 @app.route('/todos-equipos')
 def todos_equipos():
+    try:
+        inicio = int(request.args.get("inicio", 0))
+        cantidad = int(request.args.get("cantidad", 50))
+    except ValueError:
+        return jsonify({"error": "Parámetros 'inicio' y 'cantidad' deben ser enteros"}), 400
+
     token = iniciar_sesion()
     if not token:
         return jsonify({"error": "No se pudo iniciar sesión"}), 500
 
     headers = {"Session-Token": token, "Content-Type": "application/json"}
-
-    # Obtener total de equipos
-    conteo_url = f"{GLPI_URL}/search/Computer/?range=0-0"
-    r_total = requests.get(conteo_url, headers=headers)
-    if "Content-Range" not in r_total.headers:
-        cerrar_sesion(token)
-        return jsonify({"error": "No se pudo obtener el total de equipos"}), 500
-
-    total_equipos = int(r_total.headers["Content-Range"].split("/")[-1])
-    equipos = []
-
-    # Recoger equipos en bloques de 50
-    paso = 50
-    for inicio in range(0, total_equipos, paso):
-        fin = inicio + paso - 1
-        url = (
-            f"{GLPI_URL}/search/Computer/?range={inicio}-{fin}"
-            "&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23"
-            "&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4"
-            "&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6"
-            "&forcedisplay[9]=70&forcedisplay[10]=80"
-        )
-        r = requests.get(url, headers=headers)
-        if r.status_code not in [200, 206]:
-            continue
-        datos = r.json().get("data", [])
-        equipos.extend([{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in datos])
-
+    url = (
+        f"{GLPI_URL}/search/Computer/?range={inicio}-{inicio+cantidad-1}"
+        "&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23"
+        "&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4"
+        "&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6"
+        "&forcedisplay[9]=70&forcedisplay[10]=80"
+    )
+    r = requests.get(url, headers=headers)
     cerrar_sesion(token)
+
+    if r.status_code not in [200, 206]:
+        return jsonify({"error": "No se pudo obtener el inventario"}), 500
+
+    datos = r.json().get("data", [])
+    equipos = [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in datos]
 
     return jsonify({"equipos": equipos, "total": len(equipos)})
 
-# 🔹 Buscar por usuario (tolerante con nombres)
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
     nombre_completo = request.args.get("usuario", "").strip()
@@ -136,7 +121,7 @@ def buscar_usuario():
 
     return jsonify({"error": f"La búsqueda por equipos asignados a {nombre_completo} falló debido a un problema al comunicarse con la API correspondiente."}), 500
 
-# 🔹 Ejecutar app
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
+
