@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://glpi-jntn.onrender.com"
+      "url": "https://glpi-jntn.onrender.com/inventario"
     }
   ],
   "paths": {
