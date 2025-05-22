@@ -33,23 +33,6 @@ def iniciar_sesion():
 def cerrar_sesion(session_token):
     requests.get(f"{GLPI_URL}/killSession", headers={"Session-Token": session_token})
 
-def obtener_mapa_usuarios(session_token):
-    headers = {"Session-Token": session_token, "Content-Type": "application/json"}
-    url_usuarios = f"{GLPI_URL}/search/User?range=0-999&forcedisplay[0]=1&forcedisplay[1]=9&forcedisplay[2]=34"
-    r = requests.get(url_usuarios, headers=headers)
-    mapa = {}
-
-    if r.status_code in [200, 206]:
-        usuarios = r.json().get("data", [])
-        for u in usuarios:
-            campos = {i["field"]: i["value"] for i in u.get("items", [])}
-            login = campos.get(1)
-            nombre = f"{campos.get(9, '').strip()} {campos.get(34, '').strip()}"
-            if login:
-                mapa[login] = nombre
-
-    return mapa
-
 @app.route('/')
 def home():
     return jsonify({"mensaje": "API GLPI funcionando correctamente desde Render"})
@@ -58,7 +41,7 @@ def home():
 def todos_equipos():
     try:
         inicio = int(request.args.get("inicio", 0))
-        cantidad = int(request.args.get("cantidad", 100))
+        cantidad = int(request.args.get("cantidad", 150))
     except ValueError:
         return jsonify({"error": "Parámetros 'inicio' y 'cantidad' deben ser enteros"}), 400
 
@@ -67,8 +50,6 @@ def todos_equipos():
         return jsonify({"error": "No se pudo iniciar sesión"}), 500
 
     headers = {"Session-Token": token, "Content-Type": "application/json"}
-    usuarios = obtener_mapa_usuarios(token)
-
     url = (
         f"{GLPI_URL}/search/Computer/?range={inicio}-{inicio+cantidad-1}"
         "&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23"
@@ -83,13 +64,7 @@ def todos_equipos():
         return jsonify({"error": "No se pudo obtener el inventario"}), 500
 
     datos = r.json().get("data", [])
-    equipos = []
-
-    for item in datos:
-        equipo = {CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()}
-        login = equipo.get("Propietario")
-        equipo["Nombre_Propietario"] = usuarios.get(login) if login else None
-        equipos.append(equipo)
+    equipos = [{CAMPOS_MAP.get(str(k), str(k)): v for k, v in item.items()} for item in datos]
 
     return jsonify({"equipos": equipos, "total": len(equipos)})
 
@@ -149,3 +124,4 @@ def buscar_usuario():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
+
