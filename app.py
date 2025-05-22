@@ -1,6 +1,7 @@
 import os
 import unicodedata
 import requests
+import time
 from flask import Flask, jsonify, request
 
 GLPI_URL = "http://soporteti.sutex.com/glpi/apirest.php"
@@ -33,7 +34,6 @@ def iniciar_sesion():
 def cerrar_sesion(session_token):
     requests.get(f"{GLPI_URL}/killSession", headers={"Session-Token": session_token})
 
-# 🔹 Nuevo: mapa login → datos completos
 def obtener_mapa_usuarios(session_token):
     headers = {"Session-Token": session_token, "Content-Type": "application/json"}
     url = f"{GLPI_URL}/search/User?range=0-999&forcedisplay[0]=1&forcedisplay[1]=9&forcedisplay[2]=34"
@@ -101,6 +101,33 @@ def todos_equipos():
         equipos.append(equipo)
 
     return jsonify({"equipos": equipos, "total": len(equipos)})
+
+@app.route('/todos-equipos-completo')
+def todos_equipos_completo():
+    equipos_totales = []
+    inicio = 0
+    cantidad = 100
+
+    while True:
+        r = requests.get(
+            f"{request.url_root}todos-equipos?inicio={inicio}&cantidad={cantidad}"
+        )
+
+        if r.status_code != 200:
+            break
+
+        data = r.json()
+        nuevos_equipos = data.get("equipos", [])
+
+        if not nuevos_equipos:
+            break
+
+        equipos_totales.extend(nuevos_equipos)
+        inicio += cantidad
+
+        time.sleep(0.5)  # Evita saturar el servidor
+
+    return jsonify({"total": len(equipos_totales), "equipos": equipos_totales})
 
 @app.route('/buscar-por-usuario', methods=['GET'])
 def buscar_usuario():
