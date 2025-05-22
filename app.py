@@ -64,7 +64,7 @@ def home():
 def todos_equipos():
     try:
         inicio = int(request.args.get("inicio", 0))
-        cantidad = int(request.args.get("cantidad", 50))
+        cantidad = int(request.args.get("cantidad", 150))
     except ValueError:
         return jsonify({"error": "Parámetros 'inicio' y 'cantidad' deben ser enteros"}), 400
 
