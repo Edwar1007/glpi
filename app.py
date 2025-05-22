@@ -102,6 +102,17 @@ def todos_equipos():
 
     return jsonify({"equipos": equipos, "total": len(equipos)})
 
+def obtener_equipos_con_reintentos(url, reintentos=2, delay=1):
+    for intento in range(reintentos + 1):
+        try:
+            r = requests.get(url)
+            if r.status_code == 200:
+                return r.json().get("equipos", [])
+        except Exception as e:
+            print(f"Error en intento {intento + 1}: {e}")
+        time.sleep(delay)
+    return None
+
 @app.route('/todos-equipos-completo')
 def todos_equipos_completo():
     equipos_totales = []
@@ -109,23 +120,18 @@ def todos_equipos_completo():
     cantidad = 100
 
     while True:
-        r = requests.get(
-            f"{request.url_root}todos-equipos?inicio={inicio}&cantidad={cantidad}"
-        )
+        url = f"{request.url_root}todos-equipos?inicio={inicio}&cantidad={cantidad}"
+        nuevos_equipos = obtener_equipos_con_reintentos(url)
 
-        if r.status_code != 200:
+        if nuevos_equipos is None:
             break
-
-        data = r.json()
-        nuevos_equipos = data.get("equipos", [])
 
         if not nuevos_equipos:
             break
 
         equipos_totales.extend(nuevos_equipos)
         inicio += cantidad
-
-        time.sleep(0.5)  # Evita saturar el servidor
+        time.sleep(0.5)
 
     return jsonify({"total": len(equipos_totales), "equipos": equipos_totales})
 
