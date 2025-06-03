@@ -148,10 +148,16 @@ def buscar_usuario():
                 cerrar_sesion(token)
                 return jsonify({"total": len(equipos), "equipos": equipos})
 
-    # Si no encontró equipos por usuario, intenta buscar por Ubicación Interna (campo 70)
+    # Si no encontró equipos por usuario, intenta buscar por Ubicación Interna (campo 70) con múltiples criterios OR
+    partes = nombre_normalizado.split()
+    criterios = "&".join(
+        [f"criteria[{i}][field]=70&criteria[{i}][searchtype]=contains&criteria[{i}][value]={p}&criteria[{i}][link]=OR"
+         for i, p in enumerate(partes)]
+    )
+
     url_equipos = (
         f"{GLPI_URL}/search/Computer?"
-        f"criteria[0][field]=70&criteria[0][searchtype]=contains&criteria[0][value]={nombre_normalizado}"
+        f"{criterios}"
         f"&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31"
         f"&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
     )
