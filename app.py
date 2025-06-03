@@ -36,7 +36,7 @@ def cerrar_sesion(session_token):
 
 def obtener_mapa_usuarios(session_token):
     headers = {"Session-Token": session_token, "Content-Type": "application/json"}
-    url = f"{GLPI_URL}/search/User?range=0-999&forcedisplay[0]=1&forcedisplay[1]=9&forcedisplay[2]=34"
+    url = f"{GLPI_URL}/search/User?range=0-9999&forcedisplay[0]=1&forcedisplay[1]=9&forcedisplay[2]=34"
     r = requests.get(url, headers=headers)
     mapa = {}
 
