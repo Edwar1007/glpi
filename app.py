@@ -85,7 +85,7 @@ def obtener_datos():
     if not session_token:
         return jsonify({"error": "No se pudo iniciar sesión en GLPI"}), 500
 
-    rango = request.args.get("rango", default=180, type=int)
+    rango = request.args.get("rango", default=160, type=int)
     print(f"📌 Consultando {rango} equipos en GLPI...")
 
     inventario = obtener_inventario(session_token, rango)
