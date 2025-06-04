@@ -1,7 +1,4 @@
-import os
-import unicodedata
 import requests
-import time
 from flask import Flask, jsonify, request
 
 # 🔹 Configuración de GLPI
@@ -61,7 +58,7 @@ def obtener_equipo_por_id(session_token, equipo_id):
         return equipo_formateado
     return None
 
-# 🔹 Buscar equipos por nombre de usuario (coincidencia parcial)
+# 🔹 Buscar equipos por nombre de usuario
 def buscar_por_usuario(session_token, nombre_usuario):
     headers = {"Session-Token": session_token, "Content-Type": "application/json"}
     url = f"{GLPI_URL}/search/Computer?criteria[0][field]=9&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}&forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
@@ -97,6 +94,10 @@ def obtener_datos():
     if inventario:
         return jsonify({"total_equipos": len(inventario), "equipos": inventario})
     return jsonify({"error": "No se encontraron equipos"}), 404
+
+@app.route('/todos-equipos', methods=['GET'])
+def todos_equipos():
+    return obtener_datos()
 
 @app.route('/inventario/<equipo_id>', methods=['GET'])
 def obtener_equipo(equipo_id):
