@@ -98,6 +98,11 @@ def obtener_datos():
         return jsonify({"total_equipos": len(inventario), "equipos": inventario})
     return jsonify({"error": "No se encontraron equipos"}), 404
 
+# 🔹 Nueva ruta alias: /todos-equipos
+@app.route('/todos-equipos', methods=['GET'])
+def alias_todos_equipos():
+    return obtener_datos()
+
 @app.route('/inventario/<equipo_id>', methods=['GET'])
 def obtener_equipo(equipo_id):
     print(f"📌 Se recibió una solicitud en /inventario/{equipo_id}")
