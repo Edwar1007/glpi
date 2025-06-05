@@ -27,7 +27,7 @@
             "name": "cantidad",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 50 },
+            "schema": { "type": "integer", "default": 150 },
             "description": "Cantidad de equipos a devolver"
           }
         ],
