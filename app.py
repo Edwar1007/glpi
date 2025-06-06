@@ -4,11 +4,9 @@ import requests
 import time
 from flask import Flask, jsonify, request
 
-# 🔹 Configuración de GLPI
 GLPI_URL = "http://soporteti.sutex.com/glpi/apirest.php"
 API_TOKEN = "mkjpcCnyDJzIzC0PgHgDhOK7NT3Z7YMDnD4BEIuO"
 
-# 🔹 Mapeo de campos GLPI
 CAMPOS_MAP = {
     "1": "ID",
     "19": "Fecha_Asignación",
@@ -23,7 +21,6 @@ CAMPOS_MAP = {
     "80": "Entidad"
 }
 
-# 🔹 Funciones de sesión
 def iniciar_sesion():
     headers = {"Authorization": f"user_token {API_TOKEN}", "Content-Type": "application/json"}
     response = requests.get(f"{GLPI_URL}/initSession", headers=headers)
@@ -35,7 +32,6 @@ def cerrar_sesion(session_token):
     headers = {"Session-Token": session_token}
     requests.get(f"{GLPI_URL}/killSession", headers=headers)
 
-# 🔹 Obtener un solo equipo por ID
 def obtener_equipo_por_id(session_token, equipo_id):
     headers = {"Session-Token": session_token, "Content-Type": "application/json"}
     url = f"{GLPI_URL}/Computer/{equipo_id}"
@@ -46,21 +42,44 @@ def obtener_equipo_por_id(session_token, equipo_id):
         return equipo_formateado
     return None
 
-# 🔹 Buscar equipos por usuario
-def buscar_por_usuario(session_token, nombre_usuario):
-    headers = {"Session-Token": session_token, "Content-Type": "application/json"}
-    url = f"{GLPI_URL}/search/Computer?criteria[0][field]=9&criteria[0][searchtype]=contains&criteria[0][value]={nombre_usuario}&" + \
-          "forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&forcedisplay[4]=31&forcedisplay[5]=4&" + \
-          "forcedisplay[6]=40&forcedisplay[7]=5&forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
+# 🔁 Buscar en bloques hasta 400 equipos
+def buscar_por_usuario_iterativo(nombre_usuario):
+    equipos_usuario = []
+    cantidad = 100
+    total_recorridos = 0
+
+    while total_recorridos < 400:
+        session_token = iniciar_sesion()
+        if not session_token:
+            break
+
+        rango_glpi = f"{total_recorridos}-{total_recorridos + cantidad - 1}"
+        headers = {"Session-Token": session_token, "Content-Type": "application/json"}
+        url = f"{GLPI_URL}/search/Computer/?range={rango_glpi}&" + \
+              "forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&" + \
+              "forcedisplay[4]=31&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&" + \
+              "forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
+
+        response = requests.get(url, headers=headers)
+        cerrar_sesion(session_token)
+
+        if response.status_code not in [200, 206]:
+            break
+
         datos = response.json()
         equipos = datos.get("data", [])
-        equipos_formateados = [{CAMPOS_MAP.get(str(k), f"Campo_{k}"): v for k, v in equipo.items()} for equipo in equipos]
-        return equipos_formateados
-    return None
+        if not equipos:
+            break
 
-# 🔹 Flask App
+        for equipo in equipos:
+            campos = {CAMPOS_MAP.get(str(k), f"Campo_{k}"): v for k, v in equipo.items()}
+            if str(campos.get("Ubicación_Interna", "")).lower() == nombre_usuario.lower():
+                equipos_usuario.append(campos)
+
+        total_recorridos += cantidad
+
+    return equipos_usuario
+
 app = Flask(__name__)
 
 @app.route('/', methods=['GET'])
@@ -69,7 +88,6 @@ def home():
 
 @app.route('/inventario/<equipo_id>', methods=['GET'])
 def obtener_equipo(equipo_id):
-    print(f"📌 Se recibió una solicitud en /inventario/{equipo_id}")
     session_token = iniciar_sesion()
     if not session_token:
         return jsonify({"error": "No se pudo iniciar sesión en GLPI"}), 500
@@ -84,12 +102,8 @@ def buscar_usuario():
     nombre_usuario = request.args.get("usuario")
     if not nombre_usuario:
         return jsonify({"error": "Debe proporcionar el parámetro 'usuario'"}), 400
-    print(f"📌 Buscando equipos asignados a: {nombre_usuario}")
-    session_token = iniciar_sesion()
-    if not session_token:
-        return jsonify({"error": "No se pudo iniciar sesión en GLPI"}), 500
-    equipos = buscar_por_usuario(session_token, nombre_usuario)
-    cerrar_sesion(session_token)
+    print(f"🔍 Buscando equipos asignados a: {nombre_usuario}")
+    equipos = buscar_por_usuario_iterativo(nombre_usuario)
     if equipos:
         return jsonify({"total_encontrado": len(equipos), "equipos": equipos})
     return jsonify({"mensaje": "No se encontraron equipos asignados a ese usuario."}), 404
@@ -103,8 +117,6 @@ def alias_todos_equipos():
     inicio = request.args.get("inicio", default=0, type=int)
     cantidad = request.args.get("cantidad", default=100, type=int)
     rango_glpi = f"{inicio}-{inicio + cantidad - 1}"
-
-    print(f"📌 Obteniendo equipos desde índice {inicio} hasta {inicio + cantidad - 1}...")
 
     headers = {"Session-Token": session_token, "Content-Type": "application/json"}
     url = f"{GLPI_URL}/search/Computer/?range={rango_glpi}&" + \
