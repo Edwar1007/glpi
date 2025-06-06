@@ -1,7 +1,6 @@
 import os
 import unicodedata
 import requests
-import time
 from flask import Flask, jsonify, request
 
 GLPI_URL = "http://soporteti.sutex.com/glpi/apirest.php"
@@ -42,12 +41,13 @@ def obtener_equipo_por_id(session_token, equipo_id):
         return equipo_formateado
     return None
 
+# ✅ NUEVA FUNCIÓN: recorre todo el inventario al buscar por usuario
 def buscar_por_usuario_iterativo(nombre_usuario):
     equipos_usuario = []
     cantidad = 100
     total_recorridos = 0
 
-    while total_recorridos < 400:
+    while True:
         session_token = iniciar_sesion()
         if not session_token:
             break
@@ -136,40 +136,6 @@ def alias_todos_equipos():
         })
 
     return jsonify({"error": "No se encontraron equipos"}), 404
-
-@app.route('/todos-equipos-todo', methods=['GET'])
-def obtener_todo_el_inventario():
-    session_token = iniciar_sesion()
-    if not session_token:
-        return jsonify({"error": "No se pudo iniciar sesión en GLPI"}), 500
-
-    equipos_totales = []
-    cantidad = 100
-    inicio = 0
-
-    while True:
-        rango_glpi = f"{inicio}-{inicio + cantidad - 1}"
-        headers = {"Session-Token": session_token, "Content-Type": "application/json"}
-        url = f"{GLPI_URL}/search/Computer/?range={rango_glpi}&" + \
-              "forcedisplay[0]=1&forcedisplay[1]=19&forcedisplay[2]=23&forcedisplay[3]=3&" + \
-              "forcedisplay[4]=31&forcedisplay[5]=4&forcedisplay[6]=40&forcedisplay[7]=5&" + \
-              "forcedisplay[8]=6&forcedisplay[9]=70&forcedisplay[10]=80"
-
-        response = requests.get(url, headers=headers)
-        if response.status_code not in [200, 206]:
-            break
-
-        datos = response.json()
-        equipos = datos.get("data", [])
-        if not equipos:
-            break
-
-        equipos_formateados = [{CAMPOS_MAP.get(str(k), f"Campo_{k}"): v for k, v in equipo.items()} for equipo in equipos]
-        equipos_totales.extend(equipos_formateados)
-        inicio += cantidad
-
-    cerrar_sesion(session_token)
-    return jsonify({"equipos": equipos_totales, "total": len(equipos_totales)})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)
