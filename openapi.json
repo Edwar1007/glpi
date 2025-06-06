@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "API Inventario GLPI",
-    "version": "1.0.2",
-    "description": "Consulta de inventario GLPI con paginación"
+    "version": "1.0.3",
+    "description": "Consulta de inventario GLPI con paginación real usando parámetros 'inicio' y 'cantidad'."
   },
   "servers": [
     {
@@ -14,58 +14,31 @@
     "/todos-equipos": {
       "get": {
         "operationId": "obtenerInventario",
-        "summary": "Obtener inventario con paginación",
+        "summary": "Obtener equipos con paginación",
         "parameters": [
           {
             "name": "inicio",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 0 },
-            "description": "Índice de inicio de la búsqueda"
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "Índice desde el cual comenzar la búsqueda (ej. 0, 100, 200...)"
           },
           {
             "name": "cantidad",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 150 },
-            "description": "Cantidad de equipos a devolver"
+            "schema": {
+              "type": "integer",
+              "default": 100
+            },
+            "description": "Cantidad de equipos a retornar por página"
           }
         ],
         "responses": {
           "200": {
-            "description": "Equipos consultados con éxito",
+            "description": "Listado de equipos obtenido con éxito",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "equipos": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "ID": { "type": "string" },
-                          "Marca": { "type": "string" },
-                          "Modelo": { "type": "string" },
-                          "Estado": { "type": "string" },
-                          "Serial": { "type": "string" },
-                          "Tipo_Dispositivo": { "type": "string" },
-                          "Fecha_Asignación": { "type": "string" },
-                          "Propietario": { "type": ["string", "null"] },
-                          "Ubicación": { "type": "string" },
-                          "Ubicación_Interna": { "type": "string" },
-                          "Entidad": { "type": "string" }
-                        }
-                      }
-                    },
-                    "total": { "type": "integer" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
